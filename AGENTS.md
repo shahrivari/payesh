@@ -2,12 +2,12 @@
 
 ## Project Structure & Module Organization
 
-This Python 3.14+ package uses a `src` layout. In `src/payesh/`, `ifb.py` handles source fetching, `database.py` manages announcement storage, `extraction.py` parses PDFs, and `service.py` shares collection logic between the CLI and web app. `web.py` defines the FastAPI endpoints; `web_storage.py` provides dashboard queries and run history. The Persian RTL frontend lives in `static/`. Tests are in `tests/`; runtime databases belong in `data/`. `pyproject.toml` and `uv.lock` define the environment.
+This Python 3.14+ package uses a `src` layout. In `src/payesh/`, `ifb.py` and `tse.py` handle source fetching, `database.py` manages announcement storage, `extraction.py` parses PDFs and `tse_extraction.py` handles TSE attachments, and `service.py` shares collection logic between the CLI and web app. `web.py` defines the FastAPI endpoints; `web_storage.py` provides dashboard queries and run history. The Persian RTL frontend lives in `static/`. Tests are in `tests/`; runtime databases belong in `data/`. `pyproject.toml` and `uv.lock` define the environment.
 
 ## Build, Test, and Development Commands
 
 - `uv sync` installs the project and its locked dependencies.
-- `uv run python -m payesh` fetches announcements, stores them and their PDFs in the default SQLite database, and extracts supported PDF data.
+- `uv run python -m payesh` fetches announcements, stores them and their PDF and Excel attachments in the default SQLite database, and extracts supported PDF data.
 - `uv run python -m payesh --db /path/to/file.sqlite3` selects another database; `--format csv` or `--format json` also emits fetched rows in the chosen format.
 - `uv build` builds distributable package artifacts.
 - `uv run payesh-web` serves the local dashboard and API at `127.0.0.1:8000`.
@@ -21,7 +21,7 @@ Use idiomatic Python, four spaces for indentation, and type annotations for publ
 
 ## Testing Guidelines
 
-Use pytest with `test_*.py` files and `test_*` functions. API tests use FastAPI TestClient, temporary SQLite databases, and mocked collection sources. Cover query validation, PDF responses, monetary precision, and collection failures or interruption. Avoid live IFB requests in unit tests; use representative local fixtures. No coverage threshold is set.
+Use pytest with `test_*.py` files and `test_*` functions. API tests use FastAPI TestClient, temporary SQLite databases, and mocked collection sources. Cover query validation, PDF responses, monetary precision, and collection failures or interruption. Avoid live source requests in unit tests; use representative local fixtures. No coverage threshold is set.
 
 ## Commit & Pull Request Guidelines
 

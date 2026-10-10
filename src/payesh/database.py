@@ -61,6 +61,36 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
     """Create the current database tables when they do not exist."""
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(_SCHEMA)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(announcements)")}
+    for name, definition in {
+        "source": "TEXT NOT NULL DEFAULT 'ifb'",
+        "source_id": "TEXT NOT NULL DEFAULT ''",
+        "source_calendar": "TEXT NOT NULL DEFAULT 'jalali'",
+        "published_at_source": "TEXT NOT NULL DEFAULT ''",
+        "abstract": "TEXT NOT NULL DEFAULT ''",
+        "metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+    }.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE announcements ADD COLUMN {name} {definition}")
+    connection.execute("UPDATE announcements SET source_id=notice_number WHERE source_id=''")
+    connection.execute("UPDATE announcements SET published_at_source=published_at WHERE published_at_source=''")
+    connection.executescript("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_announcement_source ON announcements(source, source_id);
+        CREATE TABLE IF NOT EXISTS source_attachments (
+            attachment_id INTEGER PRIMARY KEY,
+            notice_number TEXT NOT NULL REFERENCES announcements(notice_number) ON DELETE CASCADE,
+            source_file_id TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            file_url TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            content_type TEXT,
+            file_blob BLOB,
+            downloaded_at TEXT,
+            extracted_data_json TEXT,
+            extraction_status TEXT NOT NULL DEFAULT 'none',
+            UNIQUE(notice_number, source_file_id)
+        );
+    """)
 
 
 def save_announcements(
@@ -75,20 +105,21 @@ def save_announcements(
     with sqlite3.connect(path) as connection:
         _ensure_schema(connection)
         connection.execute(
-            "DELETE FROM announcements WHERE file_url = '' OR file_url LIKE 'javascript:%'"
+            "DELETE FROM announcements WHERE source='ifb' AND (file_url = '' OR file_url LIKE 'javascript:%')"
         )
         connection.executemany(
             """
             INSERT INTO announcements (
                 notice_number, row_number, symbol, title, published_at,
-                file_url, first_seen_at, last_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                file_url, first_seen_at, last_seen_at, source_id, published_at_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(notice_number) DO UPDATE SET
                 row_number = excluded.row_number,
                 symbol = excluded.symbol,
                 title = excluded.title,
                 published_at = excluded.published_at,
                 file_url = excluded.file_url,
+                published_at_source = excluded.published_at_source,
                 last_seen_at = excluded.last_seen_at
             """,
             [
@@ -101,6 +132,8 @@ def save_announcements(
                     item.file_url,
                     now,
                     now,
+                    item.notice_number,
+                    item.published_at,
                 )
                 for item in announcements
             ],
@@ -125,7 +158,7 @@ def get_missing_pdf_downloads(
             SELECT a.notice_number, a.file_url
             FROM announcements AS a
             LEFT JOIN announcement_files AS f USING (notice_number)
-            WHERE f.file_id IS NULL
+            WHERE f.file_id IS NULL AND a.source='ifb'
             ORDER BY a.last_seen_at DESC, CAST(a.row_number AS INTEGER) ASC
             """
         ).fetchall()
@@ -172,8 +205,10 @@ def get_database_report(db_path: str | Path = DEFAULT_DB_PATH) -> tuple[int, int
         _ensure_schema(connection)
         row = connection.execute(
             """
-            SELECT (SELECT COUNT(*) FROM announcements), COUNT(*),
-                   COALESCE(SUM(length(file_blob)), 0)
+            SELECT (SELECT COUNT(*) FROM announcements), COUNT(*) +
+                   (SELECT COUNT(*) FROM source_attachments WHERE kind='pdf' AND file_blob IS NOT NULL),
+                   COALESCE(SUM(length(file_blob)), 0) +
+                   (SELECT COALESCE(SUM(length(file_blob)),0) FROM source_attachments)
             FROM announcement_files
             """
         ).fetchone()
@@ -194,6 +229,7 @@ def load_announcements(
             """
             SELECT row_number, symbol, notice_number, title, published_at, file_url
             FROM announcements
+            WHERE source='ifb'
             ORDER BY last_seen_at DESC, CAST(row_number AS INTEGER) ASC
             """
         ).fetchall()

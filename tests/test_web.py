@@ -13,6 +13,11 @@ from payesh.ifb import Announcement, PdfDocument
 from payesh.web import create_app
 
 
+@pytest.fixture(autouse=True)
+def offline_tse(monkeypatch):
+    monkeypatch.setattr(service.tse, "fetch_announcements", lambda: [])
+
+
 @pytest.fixture
 def database(tmp_path):
     path = tmp_path / "payesh.sqlite3"
@@ -116,8 +121,8 @@ def test_collection_result_and_failure_history(client, monkeypatch):
     monkeypatch.setattr(service, "fetch_announcements", fail)
     response = client.post("/api/v1/collection-runs")
     failed = client.get("/api/v1/collection-runs/" + response.json()["id"]).json()
-    assert failed["status"] == "failed"
-    assert "offline fixture failure" in failed["error"]
+    assert failed["status"] == "partial"
+    assert "offline fixture failure" in failed["result"]["sources"]["ifb"]["error"]
     assert len(client.get("/api/v1/collection-runs").json()["items"]) == 2
 
 

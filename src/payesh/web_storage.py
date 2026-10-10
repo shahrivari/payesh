@@ -73,13 +73,18 @@ _JOIN = """FROM announcements a
            LEFT JOIN announcement_files f USING (notice_number)
            LEFT JOIN announcement_extractions e USING (notice_number)"""
 _SELECT = """SELECT a.*, f.filename, f.downloaded_at,
-             CASE WHEN f.file_id IS NULL THEN 0 ELSE 1 END AS has_pdf,
+             CASE WHEN f.file_id IS NOT NULL OR EXISTS
+                 (SELECT 1 FROM source_attachments sf WHERE sf.notice_number=a.notice_number
+                  AND sf.kind='pdf' AND sf.file_blob IS NOT NULL) THEN 1 ELSE 0 END AS has_pdf,
              e.document_type, COALESCE(e.extraction_status, 'none') AS extraction_status"""
 
 
 def announcements(path: Path, *, page=1, page_size=20, q="", symbol="",
-                  status="", document_type="", date_from="", date_to="") -> dict:
+                  status="", document_type="", date_from="", date_to="", source="") -> dict:
     clauses, values = [], []
+    if source:
+        clauses.append("a.source = ?")
+        values.append(source)
     if q:
         clauses.append("(instr(normalized(a.symbol || ' ' || a.title || ' ' || a.notice_number), ?) > 0)")
         values.append(normalize(q))
@@ -102,7 +107,10 @@ def announcements(path: Path, *, page=1, page_size=20, q="", symbol="",
         rows = db.execute(_SELECT + " " + _JOIN + where +
                           " ORDER BY date_key(a.published_at) DESC, a.last_seen_at DESC, a.notice_number DESC LIMIT ? OFFSET ?",
                           [*values, page_size, (page - 1) * page_size]).fetchall()
-    return {"items": [dict(row) for row in rows], "total": total, "page": page, "page_size": page_size}
+    items = [dict(row) for row in rows]
+    for item in items:
+        item.pop("metadata_json", None)
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 def detail(path: Path, notice: str) -> dict | None:
@@ -111,17 +119,36 @@ def detail(path: Path, notice: str) -> dict | None:
         if row is None:
             return None
         result = dict(row)
+        result.pop("metadata_json", None)
         extracted = db.execute("SELECT extracted_data_json, extracted_at FROM announcement_extractions WHERE notice_number=?", (notice,)).fetchone()
         result["extracted_data"] = json.loads(extracted[0]) if extracted else None
         result["extracted_at"] = extracted[1] if extracted else None
         result["daily_interest_values"] = [dict(item) for item in db.execute(
             "SELECT payment_date, amount_rial FROM daily_interest_values WHERE notice_number=? ORDER BY date_key(payment_date)", (notice,))]
+        result["attachments"] = [dict(item) for item in db.execute("""SELECT attachment_id,source_file_id,
+            filename,kind,content_type,downloaded_at,extraction_status,extracted_data_json,
+            CASE WHEN file_blob IS NULL THEN 0 ELSE 1 END AS downloaded
+            FROM source_attachments WHERE notice_number=? ORDER BY kind DESC,attachment_id""", (notice,))]
+        for attachment in result["attachments"]:
+            attachment["extracted_data"] = json.loads(attachment.pop("extracted_data_json") or "null")
+        if result["source"] == "ifb" and result["has_pdf"]:
+            result["attachments"] = [{"attachment_id": "primary", "filename": result["filename"],
+                                      "kind": "pdf", "downloaded": 1, "extraction_status": result["extraction_status"],
+                                      "extracted_data": result["extracted_data"]}]
     return result
 
 
 def pdf(path: Path, notice: str) -> tuple | None:
     with connection(path) as db:
         row = db.execute("SELECT filename, file_blob FROM announcement_files WHERE notice_number=?", (notice,)).fetchone()
+        if row is None:
+            row = db.execute("SELECT filename,file_blob FROM source_attachments WHERE notice_number=? AND kind='pdf' AND file_blob IS NOT NULL ORDER BY attachment_id LIMIT 1", (notice,)).fetchone()
+        return tuple(row) if row else None
+
+
+def attachment(path: Path, notice: str, attachment_id: int) -> tuple | None:
+    with connection(path) as db:
+        row = db.execute("SELECT filename,file_blob,content_type,kind FROM source_attachments WHERE notice_number=? AND attachment_id=? AND file_blob IS NOT NULL", (notice, attachment_id)).fetchone()
         return tuple(row) if row else None
 
 
@@ -171,8 +198,9 @@ def stats(path: Path) -> dict:
     with connection(path) as db:
         result = dict(db.execute("""SELECT
             (SELECT COUNT(*) FROM announcements) AS announcement_count,
-            (SELECT COUNT(*) FROM announcement_files) AS pdf_count,
-            (SELECT COALESCE(SUM(length(file_blob)),0) FROM announcement_files) AS pdf_bytes,
+            ((SELECT COUNT(*) FROM announcement_files) + (SELECT COUNT(*) FROM source_attachments WHERE kind='pdf' AND file_blob IS NOT NULL)) AS pdf_count,
+            (SELECT COUNT(*) FROM source_attachments WHERE kind='excel' AND file_blob IS NOT NULL) AS excel_count,
+            ((SELECT COALESCE(SUM(length(file_blob)),0) FROM announcement_files) + (SELECT COALESCE(SUM(length(file_blob)),0) FROM source_attachments)) AS pdf_bytes,
             (SELECT COUNT(*) FROM announcement_extractions WHERE extraction_status='complete') AS complete_count,
             (SELECT COUNT(*) FROM announcement_extractions WHERE extraction_status!='complete') AS review_count
         """).fetchone())

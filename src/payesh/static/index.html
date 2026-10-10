@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>پایش · اطلاعیه‌های فرابورس</title>
+  <title>پایش · اطلاعیه‌های بازار سرمایه</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/app.css">
@@ -23,8 +23,8 @@
   <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></symbol>
 </defs></svg>
 <header class="header">
-  <a class="brand" href="/" aria-label="پایش، صفحه اصلی"><span class="logo"><svg><use href="#icon-radar"/></svg></span><span><strong>پایش</strong><small>رصد اطلاعیه‌های فرابورس</small></span></a>
-  <div class="environment"><span class="dot"></span>نسخه محلی <span class="environment-label">فرابورس ایران</span></div>
+  <a class="brand" href="/" aria-label="پایش، صفحه اصلی"><span class="logo"><svg><use href="#icon-radar"/></svg></span><span><strong>پایش</strong><small>رصد اطلاعیه‌های بازار سرمایه</small></span></a>
+  <div class="environment"><span class="dot"></span>نسخه محلی <span class="environment-label">بورس و فرابورس</span></div>
 </header>
 <main>
   <div class="heading"><div><span class="eyebrow">نمای کلی</span><h1>اطلاعیه‌ها، یک‌جا و روشن.</h1><p>اطلاعیه‌های دریافت‌شده، فایل‌ها و اطلاعات استخراج‌شده را بررسی کنید.</p></div><button type="button" class="primary" id="collect"><svg><use href="#icon-refresh"/></svg><span id="collect-label">دریافت اطلاعیه‌ها</span></button></div>
@@ -41,16 +41,16 @@
   <div class="workspace">
     <section class="list" aria-labelledby="list-heading">
       <div class="section-heading"><h2 id="list-heading">اطلاعیه‌ها</h2><span id="count" aria-live="polite">در حال بارگذاری…</span></div>
-      <div class="filters"><label class="search"><svg><use href="#icon-search"/></svg><input id="search" type="search" placeholder="جستجوی نماد، عنوان یا شماره اطلاعیه" aria-label="جستجوی اطلاعیه"></label><select id="status" aria-label="وضعیت استخراج"><option value="">همه وضعیت‌ها</option><option value="complete">استخراج کامل</option><option value="partial">استخراج ناقص</option><option value="error">خطای استخراج</option><option value="unrecognized">سند ناشناخته</option><option value="no_text">بدون متن</option><option value="none">بدون استخراج</option></select><button id="advanced-toggle" type="button" class="secondary filter-button" aria-expanded="false" aria-controls="advanced"><svg><use href="#icon-filter"/></svg>فیلتر</button></div>
+      <div class="filters"><label class="search"><svg><use href="#icon-search"/></svg><input id="search" type="search" placeholder="جستجوی نماد، عنوان یا شماره اطلاعیه" aria-label="جستجوی اطلاعیه"></label><select id="source" aria-label="منبع اطلاعیه"><option value="">همه منابع</option><option value="ifb">فرابورس</option><option value="tse">بورس تهران</option></select><select id="status" aria-label="وضعیت استخراج"><option value="">همه وضعیت‌ها</option><option value="complete">استخراج کامل</option><option value="partial">استخراج ناقص</option><option value="error">خطای استخراج</option><option value="unrecognized">سند ناشناخته</option><option value="no_text">بدون متن</option><option value="none">بدون استخراج</option></select><button id="advanced-toggle" type="button" class="secondary filter-button" aria-expanded="false" aria-controls="advanced"><svg><use href="#icon-filter"/></svg>فیلتر</button></div>
       <div id="advanced" class="advanced" hidden>
         <label>نماد دقیق<input id="symbol" placeholder="مثلاً اراد۱۵۵"></label>
-        <label>نوع سند<select id="document-type"><option value="">همه اسناد</option><option value="daily_interest">سود روزشمار</option><option value="subscription">پذیره‌نویسی</option><option value="unknown">ناشناخته</option></select></label>
+        <label>نوع سند<select id="document-type"><option value="">همه اسناد</option><option value="daily_interest">سود روزشمار</option><option value="subscription">پذیره‌نویسی</option><option value="opening">گشایش اوراق</option><option value="unknown">ناشناخته</option></select></label>
         <label>انتشار از (شمسی)<input id="date-from" placeholder="۱۴۰۵/۰۱/۰۱" inputmode="numeric"></label>
         <label>انتشار تا (شمسی)<input id="date-to" placeholder="۱۴۰۵/۱۲/۲۹" inputmode="numeric"></label>
         <button type="button" class="secondary" id="apply-filters">اعمال فیلتر</button><button type="button" class="quiet" id="clear-filters">پاک‌کردن فیلترها</button>
       </div>
       <div class="table-wrap"><table><thead><tr><th>نماد / اطلاعیه</th><th>انتشار</th><th>استخراج</th><th><span class="sr-only">جزئیات</span></th></tr></thead><tbody id="rows"></tbody></table></div>
-      <div class="empty" id="empty" hidden><svg><use href="#icon-file"/></svg><h3 id="empty-title">هنوز اطلاعیه‌ای ثبت نشده است</h3><p id="empty-text">با «دریافت اطلاعیه‌ها» اطلاعات فرابورس را به پایش اضافه کنید.</p></div>
+      <div class="empty" id="empty" hidden><svg><use href="#icon-file"/></svg><h3 id="empty-title">هنوز اطلاعیه‌ای ثبت نشده است</h3><p id="empty-text">با «دریافت اطلاعیه‌ها» اطلاعات بورس و فرابورس را به پایش اضافه کنید.</p></div>
       <div class="list-footer"><span id="page-description"></span><div class="pagination"><button type="button" id="previous" class="quiet" aria-label="صفحه قبل">قبل</button><span id="page-number">صفحه ۱</span><button type="button" id="next" class="quiet" aria-label="صفحه بعد">بعد</button></div></div>
     </section>
     <aside class="detail" id="detail" aria-label="جزئیات اطلاعیه" aria-live="polite"><div class="detail-placeholder"><svg><use href="#icon-file"/></svg><h2>جزئیات اطلاعیه</h2><p>برای بررسی اطلاعات و فایل اصلی، یک اطلاعیه را انتخاب کنید.</p></div></aside>

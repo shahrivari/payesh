@@ -45,7 +45,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH, *, update_interval: float 
         page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
         q: str = Query("", max_length=200), symbol: str = Query("", max_length=100),
         status: Literal["", "complete", "partial", "unrecognized", "no_text", "error", "none"] = "",
-        document_type: Literal["", "subscription", "daily_interest", "unknown"] = "",
+        document_type: Literal["", "subscription", "opening", "daily_interest", "unknown"] = "",
+        source: Literal["", "ifb", "tse"] = "",
         date_from: str = "", date_to: str = "",
     ):
         dates = []
@@ -60,7 +61,20 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH, *, update_interval: float 
             raise HTTPException(422, "date_from must be on or before date_to.")
         return store.announcements(path, page=page, page_size=page_size, q=q, symbol=symbol,
                                    status=status, document_type=document_type,
-                                   date_from=dates[0], date_to=dates[1])
+                                   date_from=dates[0], date_to=dates[1], source=source)
+
+    @app.get("/api/v1/announcements/{notice_number:path}/attachments/{attachment_id}")
+    def announcement_attachment(notice_number: str, attachment_id: int, download: bool = False):
+        file = store.attachment(path, notice_number, attachment_id)
+        if file is None:
+            raise HTTPException(404, "Stored attachment not found.")
+        filename, content, mime, kind = file
+        name = Path(filename.replace("\\", "/")).name
+        disposition = "attachment" if download or kind != "pdf" else "inline"
+        return Response(content, media_type=mime, headers={
+            "Content-Disposition": f"{disposition}; filename*=UTF-8''{quote(name, safe='')}",
+            "X-Content-Type-Options": "nosniff",
+        })
 
     @app.get("/api/v1/announcements/{notice_number:path}/pdf")
     def announcement_pdf(notice_number: str, download: bool = False):

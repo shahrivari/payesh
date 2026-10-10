@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -10,6 +11,11 @@ from payesh.database import save_announcements
 from payesh.ifb import Announcement, PdfDocument
 from payesh.scheduler import CollectionScheduler
 from payesh.web import create_app
+
+
+@pytest.fixture(autouse=True)
+def offline_tse(monkeypatch):
+    monkeypatch.setattr(service.tse, "fetch_announcements", lambda: [])
 
 
 def test_automatic_updates_append_without_duplicates(tmp_path, monkeypatch):

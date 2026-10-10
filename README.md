@@ -13,7 +13,7 @@ A Python application for monitoring and collecting data from web sources.
 uv sync
 ```
 
-## Fetch and store IFB announcements
+## Fetch and store announcements
 
 Fetch the announcements table, upsert the rows, download their PDFs, and store announcement metadata and file data in separate SQLite tables in `data/payesh.sqlite3`:
 
@@ -36,7 +36,9 @@ uv run python -m payesh --format csv
 uv run python -m payesh --format json
 ```
 
-The collector reads the announcements table currently returned by the IFB page. It does not yet traverse the page numbers or submit date and symbol filters.
+The collector reads the current IFB table and only the newest TSE announcement page (`PageNumber=1`, `PageSize=20`). It never scans the archive or follows pagination. TSE titles must contain both «پذیره» and «اوراق», or both «گشایش» and «اوراق», after Persian text normalization. All PDF and Excel (`.xlsx`, `.xls`) attachments on matching announcements are eligible, regardless of filename; images are excluded. TSE attachment metadata and bytes live in `source_attachments`, with source IDs namespaced to avoid IFB collisions.
+
+TSE PDFs use best-effort extraction; Excel extraction reads cached values and supported date/interest columns without recalculating formulas. Missing values and unsupported layouts remain partial or unrecognized.
 
 Application code lives in `src/payesh/`.
 
@@ -58,7 +60,7 @@ dashboard; the UI never supplies sample records.
 Automatic collection runs every hour while this server stays running, beginning
 one hour after startup. It appends unseen notice numbers and updates existing
 ones without duplicates, using the same collector as the manual button. Missing
-PDFs are retried. Scheduled runs appear in collection history with
+attachments are retried. Scheduled runs appear in collection history with
 `started_by: "scheduled"`; manual runs use `"manual"`. The dashboard displays the
 next automatic update in Tehran time. Closing the browser does not stop updates;
 stopping the server or shutting down the computer does. Each server restart
@@ -80,24 +82,23 @@ login. Collection runs in the background, persists progress and errors in
 `collection_runs`, and rejects overlapping web collection requests. A restart
 marks an unfinished run as interrupted; the next collection retries missing
 PDFs. Run collection through the dashboard or CLI one at a time. The current
-collector still reads only the IFB page returned by the source, without following
+collector reads the current IFB page and newest TSE page, without following
 source pagination. Read requests never initiate collection.
 
 Interactive API documentation is at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/v1/announcements` | Paginated announcements; `page`, `page_size`, `q`, `symbol`, `status`, `document_type`, `date_from`, `date_to` |
+| `GET /api/v1/announcements` | Paginated announcements; `page`, `page_size`, `q`, `source` (`ifb` or `tse`), `symbol`, `status`, `document_type`, `date_from`, `date_to` |
 | `GET /api/v1/announcements/{notice_number}` | Metadata, extraction fields, and daily interest values |
 | `GET /api/v1/announcements/{notice_number}/pdf` | Inline stored PDF; `?download=true` downloads it |
+| `GET /api/v1/announcements/{notice_number}/attachments/{attachment_id}` | Stored TSE PDF or Excel; `?download=true` forces download |
 | `GET /api/v1/stats` | Counts, storage size, and latest collection run |
 | `POST /api/v1/collection-runs` | Start collection, returning HTTP 202 and a run ID; HTTP 409 if busy |
 | `GET /api/v1/collection-runs` | Most recent 20 runs |
 | `GET /api/v1/collection-runs/{run_id}` | Run progress, result, and failures |
 
-Date filters use zero-padded `YYYY-MM-DD` or `YYYY/MM/DD` in the source calendar
-(normally Jalali), with Persian or Latin digits. Dates are normalized for
-comparison without calendar conversion. Monetary values remain strings to
+Date filters use zero-padded `YYYY-MM-DD` or `YYYY/MM/DD` in the Jalali calendar, with Persian or Latin digits. TSE Gregorian publication dates are converted to Jalali for comparison and display; original timestamps and source calendar are retained. Monetary values remain strings to
 preserve precision, and are labeled in rials. Run timestamps are stored in UTC
 and displayed in Tehran time. The UI font uses Google Fonts with a system-font
 fallback; all application logic and data run locally.
@@ -109,4 +110,4 @@ uv run pytest -q
 ```
 
 Tests use temporary SQLite databases and mocked collection sources. They do not
-make live IFB requests.
+make live source requests.

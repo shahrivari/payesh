@@ -13,7 +13,7 @@ from payesh.service import collect
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Fetch the IFB announcements table.")
+    parser = argparse.ArgumentParser(description="Collect IFB and matching newest-page TSE announcements.")
     parser.add_argument(
         "--format",
         choices=("csv", "json"),
@@ -52,17 +52,17 @@ def main() -> int:
         "Payesh execution report",
         f"Announcements fetched this run: {len(announcements)}",
         f"Announcement records in database: {announcement_count}",
-        f"PDFs downloaded and stored this run: {downloaded}",
+        f"Attachments downloaded and stored this run: {downloaded}",
         f"PDFs stored in database: {pdf_count}",
-        f"Total PDF BLOB storage: {pdf_bytes:,} bytes",
-        f"N-suffixed PDFs parsed: {target_count}",
+        f"Total attachment BLOB storage: {pdf_bytes:,} bytes",
+        f"Target attachments parsed: {target_count}",
         f"Complete extractions: {complete_extractions}",
         f"Partial or failed extractions: {partial_extractions}",
         f"Daily-interest values stored: {daily_value_count}",
         f"Database: {args.db.expanduser()}",
     ]
     if failed:
-        summary_lines.append(f"PDF downloads failed: {len(failed)}")
+        summary_lines.append(f"Collection failures: {len(failed)}")
         summary_lines.extend(f"  {notice_number}: {reason}" for notice_number, reason in failed)
     summary = "\n".join(summary_lines)
 

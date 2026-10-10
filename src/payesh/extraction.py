@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from payesh.extraction_details import annotate
+
 import io
 import json
 import re
@@ -141,6 +143,7 @@ def extract_pdf_data(content: bytes) -> tuple[dict[str, Any], list[dict[str, str
     )
     if not text.strip():
         data["extraction_status"] = "no_text"
+    annotate(data, daily_values)
     return data, daily_values
 
 
@@ -168,6 +171,7 @@ def extract_target_pdfs(db_path: str | Path = DEFAULT_DB_PATH) -> tuple[int, int
             data = {"document_type": "unknown", "extraction_status": "error",
                     "error": str(exc), "filename": filename}
             daily_values = []
+        annotate(data, daily_values)
         status = str(data["extraction_status"])
         serialized = json.dumps(data, ensure_ascii=False, sort_keys=True)
         connection = sqlite3.connect(path, timeout=15)
