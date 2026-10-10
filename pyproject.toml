@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "payesh"
+version = "0.1.0"
+description = "A Python application for monitoring and collecting data from web sources"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "pypdf>=6.20.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/payesh"]
