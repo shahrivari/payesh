@@ -145,24 +145,34 @@ def extract_pdf_data(content: bytes) -> tuple[dict[str, Any], list[dict[str, str
 
 
 def extract_target_pdfs(db_path: str | Path = DEFAULT_DB_PATH) -> tuple[int, int, int, int]:
-    """Extract N-suffixed PDFs and persist fields and daily amounts."""
+    """Parse outside write transactions so the dashboard stays responsive."""
     path = Path(db_path).expanduser()
     if not path.exists():
         return 0, 0, 0, 0
 
-    with sqlite3.connect(path) as connection:
+    connection = sqlite3.connect(path, timeout=15)
+    try:
         _ensure_schema(connection)
         records = connection.execute(
             """SELECT notice_number, filename, file_blob FROM announcement_files
-               WHERE upper(filename) LIKE '%N.PDF' ORDER BY filename"""
+               WHERE upper(filename) LIKE ? ORDER BY filename""", ("%N.PDF",)
         ).fetchall()
-        processed = partial = daily_rows = 0
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        for notice_number, filename, content in records:
-            try:
-                data, daily_values = extract_pdf_data(content)
-                status = str(data["extraction_status"])
-                serialized = json.dumps(data, ensure_ascii=False, sort_keys=True)
+    finally:
+        connection.close()
+
+    complete = partial = daily_rows = 0
+    for notice_number, filename, content in records:
+        try:
+            data, daily_values = extract_pdf_data(content)
+        except Exception as exc:
+            data = {"document_type": "unknown", "extraction_status": "error",
+                    "error": str(exc), "filename": filename}
+            daily_values = []
+        status = str(data["extraction_status"])
+        serialized = json.dumps(data, ensure_ascii=False, sort_keys=True)
+        connection = sqlite3.connect(path, timeout=15)
+        try:
+            with connection:
                 connection.execute(
                     """INSERT INTO announcement_extractions
                        (notice_number, document_type, extraction_status, extracted_data_json, extracted_at)
@@ -172,28 +182,17 @@ def extract_target_pdfs(db_path: str | Path = DEFAULT_DB_PATH) -> tuple[int, int
                            extraction_status=excluded.extraction_status,
                            extracted_data_json=excluded.extracted_data_json,
                            extracted_at=excluded.extracted_at""",
-                    (notice_number, data["document_type"], status, serialized, now),
+                    (notice_number, data["document_type"], status, serialized,
+                     datetime.now(timezone.utc).isoformat(timespec="seconds")),
                 )
                 connection.execute("DELETE FROM daily_interest_values WHERE notice_number = ?", (notice_number,))
                 connection.executemany(
                     "INSERT INTO daily_interest_values (notice_number, payment_date, amount_rial) VALUES (?, ?, ?)",
                     [(notice_number, item["payment_date"], item["amount_rial"]) for item in daily_values],
                 )
-                processed += 1
-                partial += status != "complete"
-                daily_rows += len(daily_values)
-            except Exception as exc:
-                data = {"document_type": "unknown", "extraction_status": "error", "error": str(exc), "filename": filename}
-                connection.execute(
-                    """INSERT INTO announcement_extractions
-                       (notice_number, document_type, extraction_status, extracted_data_json, extracted_at)
-                       VALUES (?, 'unknown', 'error', ?, ?)
-                       ON CONFLICT(notice_number) DO UPDATE SET
-                           document_type='unknown', extraction_status='error',
-                           extracted_data_json=excluded.extracted_data_json,
-                           extracted_at=excluded.extracted_at""",
-                    (notice_number, json.dumps(data, ensure_ascii=False), now),
-                )
-                processed += 1
-                partial += 1
-    return len(records), processed - partial, partial, daily_rows
+        finally:
+            connection.close()
+        complete += status == "complete"
+        partial += status != "complete"
+        daily_rows += len(daily_values)
+    return len(records), complete, partial, daily_rows

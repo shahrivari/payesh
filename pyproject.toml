@@ -10,8 +10,16 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.15.0",
+    "fastapi>=0.115",
     "pypdf>=6.20.0",
+    "uvicorn>=0.34",
 ]
+
+[project.scripts]
+payesh-web = "payesh.web:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.28"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/payesh"]

@@ -7,15 +7,9 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from payesh.database import (
-    DEFAULT_DB_PATH,
-    get_database_report,
-    get_missing_pdf_downloads,
-    save_announcement_file,
-    save_announcements,
-)
-from payesh.ifb import download_announcement_pdf, fetch_announcements, format_announcements
-from payesh.extraction import extract_target_pdfs
+from payesh.database import DEFAULT_DB_PATH
+from payesh.ifb import format_announcements
+from payesh.service import collect
 
 
 def main() -> int:
@@ -40,39 +34,20 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        announcements = fetch_announcements(page_url=args.url) if args.url else fetch_announcements()
-    except (RuntimeError, ValueError) as exc:
+        result = collect(args.db, args.url)
+    except (OSError, RuntimeError, sqlite3.Error, ValueError) as exc:
         print(f"payesh: {exc}", file=sys.stderr)
         return 1
-
-    try:
-        save_announcements(announcements, args.db)
-    except (OSError, sqlite3.Error, ValueError) as exc:
-        print(f"payesh: could not save announcements: {exc}", file=sys.stderr)
-        return 1
-
-    downloaded = 0
-    failed: list[tuple[str, str]] = []
-    for notice_number, file_url in get_missing_pdf_downloads(args.db):
-        try:
-            document = download_announcement_pdf(file_url)
-            save_announcement_file(
-                notice_number,
-                document.filename,
-                document.content,
-                document.content_type,
-                args.db,
-            )
-            downloaded += 1
-        except (OSError, RuntimeError, sqlite3.Error, ValueError) as exc:
-            failed.append((notice_number, str(exc)))
-
-    announcement_count, pdf_count, pdf_bytes = get_database_report(args.db)
-    try:
-        target_count, complete_extractions, partial_extractions, daily_value_count = extract_target_pdfs(args.db)
-    except (OSError, sqlite3.Error, ValueError) as exc:
-        print(f"payesh: could not extract PDF data: {exc}", file=sys.stderr)
-        return 1
+    announcements = result["announcements"]
+    downloaded = result["downloaded"]
+    failed = [(item["notice_number"], item["error"]) for item in result["failures"]]
+    announcement_count = result["announcement_count"]
+    pdf_count = result["pdf_count"]
+    pdf_bytes = result["pdf_bytes"]
+    target_count = result["target_count"]
+    complete_extractions = result["complete_extractions"]
+    partial_extractions = result["partial_extractions"]
+    daily_value_count = result["daily_value_count"]
     summary_lines = [
         "Payesh execution report",
         f"Announcements fetched this run: {len(announcements)}",
