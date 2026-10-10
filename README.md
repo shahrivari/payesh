@@ -111,3 +111,55 @@ uv run pytest -q
 
 Tests use temporary SQLite databases and mocked collection sources. They do not
 make live source requests.
+
+## Storage and update interval
+
+Both entry points accept `--data-dir /path/to/data`; the database is
+`payesh.sqlite3` inside that directory, which is created if needed. The default
+is `./data`, or `PAYESH_DATA_DIR` when set. `--db` still selects an explicit file
+and cannot be combined with `--data-dir`. Existing data is never moved automatically.
+
+```bash
+uv run payesh-web --data-dir /home/saeed/payesh-data --update-interval 30
+uv run python -m payesh --data-dir /home/saeed/payesh-data
+```
+
+`--update-interval` is in minutes (default 60); `0` disables automatic collection.
+`PAYESH_UPDATE_INTERVAL` supplies the default; command-line options take precedence.
+`--no-auto-update` remains supported and cannot be combined with `--update-interval`.
+Restart the server to change startup settings. `--host` defaults to `127.0.0.1`
+(or `PAYESH_HOST`); the container uses `0.0.0.0` for port forwarding.
+
+## Docker
+
+Build and start with Docker Compose:
+
+```bash
+docker compose up --build -d
+```
+
+Open [http://127.0.0.1:8001](http://127.0.0.1:8001). Port 8001 avoids the local
+server on port 8000. Compose stores SQLite and downloaded attachments in the
+persistent `payesh-data` volume. The image runs one server process as UID/GID
+10001 and installs production dependencies from `uv.lock`.
+
+```bash
+PAYESH_UPDATE_INTERVAL=30 PAYESH_PORT=8002 docker compose up -d
+docker compose logs -f
+docker compose down
+```
+
+Stopping or rebuilding preserves the volume; `docker compose down -v` deletes it.
+For an image without Compose:
+
+```bash
+docker build -t payesh .
+docker run -d --name payesh -p 127.0.0.1:8001:8000 \
+  -v payesh-data:/data -e PAYESH_UPDATE_INTERVAL=30 payesh
+```
+
+To use a host directory, replace the volume with `/absolute/data/path:/data`;
+it must be writable by UID 10001. To reuse existing data, stop the local server
+first and mount its data directory. Run only one collector against a database.
+A new volume starts empty; use «دریافت اطلاعیه‌ها» for initial collection.
+Automatic collection begins after the configured interval while the container runs.

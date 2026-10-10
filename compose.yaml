@@ -1,0 +1,15 @@
+services:
+  payesh:
+    build: .
+    ports:
+      - "127.0.0.1:${PAYESH_PORT:-8001}:8000"
+    environment:
+      PAYESH_DATA_DIR: /data
+      PAYESH_UPDATE_INTERVAL: "${PAYESH_UPDATE_INTERVAL:-60}"
+    volumes:
+      - payesh-data:/data
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+volumes:
+  payesh-data:

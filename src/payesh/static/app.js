@@ -126,7 +126,7 @@ async function loadStats() {
   $("stat-storage").textContent = `${fa((stats.pdf_bytes / 1048576).toFixed(1))} مگابایت فایل${stats.excel_count ? ` · ${fa(stats.excel_count)} Excel` : ""}`;
   renderRun(stats.latest_run);
   $("auto-update").textContent = stats.auto_update?.enabled
-    ? `به‌روزرسانی خودکار هر ساعت · دریافت بعدی: ${dateTime(stats.auto_update.next_run_at)}`
+    ? `به‌روزرسانی خودکار هر ${fa(stats.auto_update.interval_seconds / 60)} دقیقه · دریافت بعدی: ${dateTime(stats.auto_update.next_run_at)}`
     : "به‌روزرسانی خودکار غیرفعال است";
   const key = stats.latest_run ? `${stats.latest_run.id}:${stats.latest_run.status}` : "none";
   if (state.lastRunKey !== key) {

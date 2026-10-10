@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -12,6 +13,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
+from payesh.config import add_storage_options, database_path, minutes
 from payesh.database import DEFAULT_DB_PATH
 from payesh.service import collect
 from payesh.scheduler import CollectionScheduler
@@ -140,11 +142,23 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH, *, update_interval: float 
 
 def main():
     parser = argparse.ArgumentParser(description="Start the local Payesh dashboard.")
-    parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
+    add_storage_options(parser)
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--no-auto-update", action="store_true", help="Disable hourly background collection.")
+    parser.add_argument("--host", default=os.environ.get("PAYESH_HOST", "127.0.0.1"))
+    schedule = parser.add_mutually_exclusive_group()
+    schedule.add_argument("--update-interval", type=minutes, default=None,
+                          help="Automatic update interval in minutes; 0 disables updates (default: PAYESH_UPDATE_INTERVAL or 60).")
+    schedule.add_argument("--no-auto-update", action="store_true", help="Disable automatic collection.")
     args = parser.parse_args()
-    uvicorn.run(create_app(args.db, update_interval=0 if args.no_auto_update else 3600), host="127.0.0.1", port=args.port)
+    interval = args.update_interval
+    if args.no_auto_update:
+        interval = 0
+    elif interval is None:
+        try:
+            interval = minutes(os.environ.get("PAYESH_UPDATE_INTERVAL", "60"))
+        except argparse.ArgumentTypeError as exc:
+            parser.error(str(exc))
+    uvicorn.run(create_app(database_path(args), update_interval=interval * 60), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

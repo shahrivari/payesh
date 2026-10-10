@@ -7,7 +7,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from payesh.database import DEFAULT_DB_PATH
+from payesh.config import add_storage_options, database_path
 from payesh.ifb import format_announcements
 from payesh.service import collect
 
@@ -25,13 +25,9 @@ def main() -> int:
         default=None,
         help="Page URL to fetch (defaults to the IFB announcements page).",
     )
-    parser.add_argument(
-        "--db",
-        type=Path,
-        default=DEFAULT_DB_PATH,
-        help=f"SQLite database path (default: {DEFAULT_DB_PATH}).",
-    )
+    add_storage_options(parser)
     args = parser.parse_args()
+    args.db = database_path(args)
 
     try:
         result = collect(args.db, args.url)
