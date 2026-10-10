@@ -55,6 +55,22 @@ extracted fields and daily interest values, view or download PDFs, and use
 «دریافت اطلاعیه‌ها» to collect new data. An empty database starts with an empty
 dashboard; the UI never supplies sample records.
 
+Automatic collection runs every hour while this server stays running, beginning
+one hour after startup. It appends unseen notice numbers and updates existing
+ones without duplicates, using the same collector as the manual button. Missing
+PDFs are retried. Scheduled runs appear in collection history with
+`started_by: "scheduled"`; manual runs use `"manual"`. The dashboard displays the
+next automatic update in Tehran time. Closing the browser does not stop updates;
+stopping the server or shutting down the computer does. Each server restart
+starts a new hourly interval. If a manual run is active at a scheduled tick,
+that tick is skipped to prevent overlapping collection.
+
+To run only manual updates:
+
+```bash
+uv run payesh-web --no-auto-update
+```
+
 ```bash
 uv run payesh-web --db /path/to/announcements.sqlite3 --port 8001
 ```

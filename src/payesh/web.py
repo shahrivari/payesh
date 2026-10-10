@@ -1,6 +1,7 @@
 """Local REST API and Persian web dashboard."""
 
 import argparse
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -13,18 +14,24 @@ import uvicorn
 
 from payesh.database import DEFAULT_DB_PATH
 from payesh.service import collect
+from payesh.scheduler import CollectionScheduler
 from payesh import web_storage as store
 
 STATIC = Path(__file__).parent / "static"
 
 
-def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
+def create_app(db_path: str | Path = DEFAULT_DB_PATH, *, update_interval: float = 3600) -> FastAPI:
     path = Path(db_path).expanduser().resolve()
 
     @asynccontextmanager
     async def lifespan(app):
         store.initialize(path)
-        yield
+        task = asyncio.create_task(scheduler.run())
+        try:
+            yield
+        finally:
+            scheduler.stop.set()
+            await task
 
     app = FastAPI(title="Payesh API", version="0.1.0", lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -76,7 +83,9 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
 
     @app.get("/api/v1/stats")
     def statistics():
-        return store.stats(path)
+        result = store.stats(path)
+        result["auto_update"] = scheduler.status()
+        return result
 
     @app.get("/api/v1/collection-runs")
     def runs():
@@ -96,6 +105,8 @@ def create_app(db_path: str | Path = DEFAULT_DB_PATH) -> FastAPI:
             store.finish(path, run_id, result=result)
         except Exception as exc:
             store.finish(path, run_id, error=str(exc))
+
+    scheduler = CollectionScheduler(path, execute, update_interval)
 
     @app.post("/api/v1/collection-runs", status_code=202)
     def collect_now(request: Request, tasks: BackgroundTasks):
@@ -117,8 +128,9 @@ def main():
     parser = argparse.ArgumentParser(description="Start the local Payesh dashboard.")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--no-auto-update", action="store_true", help="Disable hourly background collection.")
     args = parser.parse_args()
-    uvicorn.run(create_app(args.db), host="127.0.0.1", port=args.port)
+    uvicorn.run(create_app(args.db, update_interval=0 if args.no_auto_update else 3600), host="127.0.0.1", port=args.port)
 
 
 if __name__ == "__main__":

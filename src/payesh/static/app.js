@@ -105,6 +105,9 @@ async function loadStats() {
   for (const [id, value] of [["stat-announcements", stats.announcement_count], ["stat-pdfs", stats.pdf_count], ["stat-complete", stats.complete_count], ["stat-review", stats.review_count]]) $(id).textContent = amount(value);
   $("stat-storage").textContent = `${fa((stats.pdf_bytes / 1048576).toFixed(1))} مگابایت فایل ذخیره‌شده`;
   renderRun(stats.latest_run);
+  $("auto-update").textContent = stats.auto_update?.enabled
+    ? `به‌روزرسانی خودکار هر ساعت · دریافت بعدی: ${dateTime(stats.auto_update.next_run_at)}`
+    : "به‌روزرسانی خودکار غیرفعال است";
   const key = stats.latest_run ? `${stats.latest_run.id}:${stats.latest_run.status}` : "none";
   if (state.lastRunKey !== key) {
     const completedChange = state.lastRunKey !== null;
@@ -116,7 +119,7 @@ async function loadStats() {
 async function loadHistory() {
   const history = await api("collection-runs");
   $("history-count").textContent = `(${fa(history.items.length)})`;
-  $("history-items").innerHTML = history.items.length ? history.items.map(run => `<article class="history-entry"><div class="history-entry-top"><strong>${escapeHTML(runLabels[run.status] || run.status)}</strong><span>${escapeHTML(dateTime(run.started_at))}</span></div>${run.result ? `<p>${fa(run.result.fetched)} اطلاعیه دریافت‌شده · ${fa(run.result.downloaded)} فایل جدید · ${fa(run.result.complete_extractions)} استخراج کامل</p>` : ""}${run.error ? `<p dir="auto">${escapeHTML(run.error)}</p>` : ""}${run.result?.failures.length ? `<details><summary>خطاهای دانلود (${fa(run.result.failures.length)})</summary><ul>${run.result.failures.map(f => `<li>اطلاعیه ${text(f.notice_number)}: <span dir="auto">${escapeHTML(f.error)}</span></li>`).join("")}</ul></details>` : ""}</article>`).join("") : '<p class="empty">هنوز دریافتی ثبت نشده است.</p>';
+  $("history-items").innerHTML = history.items.length ? history.items.map(run => `<article class="history-entry"><div class="history-entry-top"><strong>${escapeHTML(runLabels[run.status] || run.status)} · ${run.started_by === "scheduled" ? "خودکار" : "دستی"}</strong><span>${escapeHTML(dateTime(run.started_at))}</span></div>${run.result ? `<p>${fa(run.result.fetched)} اطلاعیه دریافت‌شده · ${fa(run.result.downloaded)} فایل جدید · ${fa(run.result.complete_extractions)} استخراج کامل</p>` : ""}${run.error ? `<p dir="auto">${escapeHTML(run.error)}</p>` : ""}${run.result?.failures.length ? `<details><summary>خطاهای دانلود (${fa(run.result.failures.length)})</summary><ul>${run.result.failures.map(f => `<li>اطلاعیه ${text(f.notice_number)}: <span dir="auto">${escapeHTML(f.error)}</span></li>`).join("")}</ul></details>` : ""}</article>`).join("") : '<p class="empty">هنوز دریافتی ثبت نشده است.</p>';
 }
 async function collect() {
   if (state.starting || state.active) return;

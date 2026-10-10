@@ -61,6 +61,9 @@ def initialize(path: Path) -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS one_active_collection
                 ON collection_runs ((1)) WHERE status = 'running';
         """)
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(collection_runs)")}
+        if "started_by" not in columns:
+            db.execute("ALTER TABLE collection_runs ADD COLUMN started_by TEXT NOT NULL DEFAULT 'manual'")
         db.execute("""UPDATE collection_runs SET status='interrupted', stage='finished',
                       finished_at=?, error='Server stopped before collection finished.'
                       WHERE status='running'""", (now(),))
@@ -141,11 +144,11 @@ def recent_runs(path: Path) -> list[dict]:
         return [_run(row) for row in db.execute("SELECT * FROM collection_runs ORDER BY started_at DESC, rowid DESC LIMIT 20")]
 
 
-def start_run(path: Path) -> str | None:
+def start_run(path: Path, started_by: str = "manual") -> str | None:
     run_id = uuid.uuid4().hex
     try:
         with connection(path) as db:
-            db.execute("INSERT INTO collection_runs (id,status,stage,started_at) VALUES (?, 'running', 'fetching', ?)", (run_id, now()))
+            db.execute("INSERT INTO collection_runs (id,status,stage,started_at,started_by) VALUES (?, 'running', 'fetching', ?, ?)", (run_id, now(), started_by))
     except sqlite3.IntegrityError:
         return None
     return run_id
